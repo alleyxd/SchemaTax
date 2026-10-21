@@ -1,0 +1,227 @@
+\documentclass[10pt,twocolumn]{article}
+\usepackage[margin=0.8in]{geometry}
+\usepackage{booktabs}
+\usepackage{amsmath}
+\usepackage{xurl}
+\usepackage[hidelinks]{hyperref}
+\usepackage{xcolor}
+\usepackage{enumitem}
+\setlist{nosep,leftmargin=*}
+
+\title{The Schema Tax Is a Schema Design Tax:\\When Constrained JSON Decoding Costs Accuracy, and When It Helps}
+\author{Ali Ashter\\\texttt{hello@ashter.dev}}
+\date{October 2026}
+
+\begin{document}
+\maketitle
+
+\begin{abstract}
+Production systems increasingly force language models to answer in JSON, using constrained decoding to guarantee the
+output matches a schema. Earlier work reported that format restrictions hurt reasoning, and others disputed it. We
+separate the parts of the question that usually travel together: whether the schema is enforced, whether it is shown
+to the model, and in what order its fields come. Across three Qwen3 models (1.7B, 4B, 8B) on GSM8K, AG News and
+CoNLL-2003, with 12,600 requests in total, enforcing a schema that is also shown in the prompt costs nothing
+measurable on GSM8K at 4B and 8B ($-0.3$ and $-2.7$ points against free-text chain of thought, both within the 95\%
+interval) and helps on classification and extraction. The losses come from schema design. Putting the
+\texttt{answer} field before the \texttt{reasoning} field cuts GSM8K accuracy by 63 to 69 points, to the level of
+answering with no reasoning at all, replicating an earlier finding on a hosted model; 55 of the 56 answers that hit
+the length limit were repetition loops. Enforcing a schema the model has not
+seen costs 9 to 15 points on GSM8K. Unconstrained JSON is the least reliable option for small models: the 1.7B model
+produced unparseable output for half of its answers, in part by copying the JSON Schema itself. Showing the schema is
+not always better: on extraction it makes 4B and 8B models over-fill a catch-all field, and hiding it raises F1 by
+10 to 11 points. Code, prompts and every response are public at \url{https://github.com/alleyxd/SchemaTax}.
+\end{abstract}
+
+\section{Introduction}
+
+Structured output is now a default feature of model serving. OpenAI-compatible servers such as vLLM \cite{vllm} accept
+a JSON Schema and use a grammar engine \cite{outlines,xgrammar} to mask, at every step, the tokens that would break it.
+The output is guaranteed to parse, which removes a whole class of production failures.
+
+Whether this costs accuracy has been argued in both directions. Tam et al.\ \cite{speakfreely} found that format
+restrictions degrade reasoning, and a widely read response \cite{saywhat} argued that the effect came from prompt and
+parsing choices rather than from constraints. Much of the disagreement comes from changing several things at once.
+A typical ``JSON mode'' setup differs from free-text prompting in at least three ways: the decoder is constrained,
+the prompt describes the format, and the format fixes an order in which the model must commit to its answer.
+
+We vary these separately on three local models and three tasks:
+
+\begin{itemize}
+\item \textbf{natural}: the task's usual free-text format, parsed with a regular expression;
+\item \textbf{json\_free}: JSON requested, the schema shown in the prompt, decoding unconstrained;
+\item \textbf{json\_constrained}: the schema shown and enforced;
+\item \textbf{json\_blind}: the schema enforced but not shown (the prompt only says ``Respond in JSON'');
+\item on GSM8K, two field orders under enforcement: \textbf{answer\_first} and \textbf{answer\_only}.
+\end{itemize}
+
+Our findings, in short: enforcement itself is nearly free once a model is large enough, and it is a net gain for
+small models; the order of fields matters far more than enforcement; and whether to show the schema depends on the
+task.
+
+\section{Related work}
+
+Grammar-constrained decoding goes back to work on structured NLP tasks \cite{gcd}, with efficient engines built on
+finite-state machines \cite{outlines} and pushdown automata \cite{xgrammar}. JSONSchemaBench \cite{jsonschemabench}
+compares engines on coverage, speed and the quality of constrained outputs. Tam et al.\ \cite{speakfreely} reported
+that JSON, XML and YAML restrictions lower reasoning accuracy; the response by Kurt \cite{saywhat} attributed most of
+that drop to the prompts and the answer parser, and used a reasoning-first schema shown in the prompt. Castillo
+\cite{castillo} showed that field order alone is decisive for GPT-4o-mini on GSM8K: 94.2\% with reasoning first,
+31.8\% with the answer first. That reasoning must come before the answer is the premise of chain-of-thought
+prompting \cite{cot}. We replicate the field-order effect on open models across sizes, and add what these works did
+not isolate: schema visibility under enforcement, the failure modes of unconstrained JSON, and how both change with
+model size. Label bias in small models, which our classification results touch on, was studied by
+Zhao et al.\ \cite{zhao}.
+
+\section{Setup}
+
+\textbf{Models.} Qwen3-1.7B, Qwen3-4B and Qwen3-8B \cite{qwen3} in bf16, served by vLLM 0.29.0 with its default
+structured-output backend, thinking disabled, temperature 0, on one RTX 5090.
+
+\textbf{Tasks.} 300 examples each, drawn with a fixed seed: GSM8K \cite{gsm8k} test questions (exact numeric match,
+up to 1,024 new tokens), AG News test articles (four-way topic, exact label match) and CoNLL-2003 test sentences with
+at least one entity (entity-level F1 over persons, organizations, locations and misc, exact string match).
+
+\textbf{Prompts.} Each task has one base instruction shared by all conditions. The \textbf{natural} condition adds
+the usual format: ``finish with a line \emph{The answer is N}'' for GSM8K, ``answer with the label only'' for AG
+News, and four labelled lines for CoNLL. The schema conditions add either the full JSON Schema or only ``Respond in
+JSON''. The GSM8K schema has a \texttt{reasoning} string followed by an \texttt{answer} number; the AG News schema has a
+\texttt{label} enum; the CoNLL schema has one string array per entity type.
+
+\textbf{Statistics.} We report the paired difference to the natural condition on the same examples with a 95\%
+bootstrap interval (2,000 resamples).
+
+\section{Results}
+
+\begin{table}[t]
+\centering\small
+\begin{tabular}{lrrr}
+\toprule
+GSM8K & 1.7B & 4B & 8B \\
+\midrule
+natural & 0.827 & 0.923 & 0.927 \\
+json\_free & 0.370 & 0.910 & 0.820 \\
+json\_constrained & 0.710 & 0.897 & 0.923 \\
+json\_blind & 0.697 & 0.770 & 0.840 \\
+answer\_first & 0.133 & 0.240 & 0.297 \\
+answer\_only & 0.120 & 0.260 & 0.303 \\
+\bottomrule
+\end{tabular}
+\caption{GSM8K accuracy, 300 questions per cell.}
+\label{tab:gsm}
+\end{table}
+
+\subsection{Enforcement is nearly free when the schema is shown}
+
+On GSM8K (Table~\ref{tab:gsm}), shown-and-enforced JSON is within noise of free-text chain of thought at 8B
+($-0.003$, interval $[-0.037, +0.027]$) and 4B ($-0.027$, $[-0.060, +0.007]$). It also uses less than half the
+tokens: 128 against 277 at 8B, as the reasoning written inside the JSON string is much terser. The 1.7B model does
+lose 11.7 points ($[-0.170, -0.067]$), so a tax exists, but only at the smallest size we tested.
+
+\subsection{Field order matters more than enforcement}
+
+With \texttt{answer} before \texttt{reasoning}, accuracy falls by 63 to 69 points at every size, to the level of the
+answer-only schema. The reasoning written after the answer cannot change it, so it is pure cost. Worse, it is
+sometimes not reasoning at all: 7, 19 and 30 of these responses (1.7B, 4B, 8B) hit the 1,024-token limit. In 55 of
+these 56 cases the model, having committed to a number, repeats the same justification until it is cut off, and in all
+56 the committed number was wrong. The size of the drop matches what Castillo \cite{castillo} reported for
+GPT-4o-mini.
+
+\subsection{Hidden schemas cost reasoning accuracy}
+
+Enforcing the same reasoning-first schema without showing it costs 8.7, 15.3 and 13.0 points on GSM8K (8B, 4B,
+1.7B). The model sees only the keys and types as the grammar forces them, token by token, and is never told that a
+\texttt{reasoning} field is coming, so it writes less of it. Blind responses averaged 112 to 126 tokens against 121 to
+134 for shown ones.
+
+\subsection{Unconstrained JSON fails on small models}
+
+Asking for JSON without enforcing it is the least reliable choice for small models. At 1.7B only 47\% of GSM8K
+answers and 50\% of AG News answers parse. Two failure modes dominate. Models start writing prose with LaTeX math
+and then emit JSON containing invalid backslash escapes (31 of the 35 unparseable 8B GSM8K answers, and 118 of 158 at 1.7B). And the 1.7B
+model \emph{echoes the schema}: on 297 of 300 CoNLL answers it reproduced the JSON Schema's own structure, with
+\texttt{"type": "object"} and its answers nested under \texttt{"properties"}. Unwrapping these echoes raises its AG
+News score from 0.410 to 0.820, the same as with enforcement, so the model knows the answer and only gets the format
+wrong. Enforcement removes both failure modes.
+
+\begin{table}[t]
+\centering\small
+\begin{tabular}{llrrr}
+\toprule
+& & 1.7B & 4B & 8B \\
+\midrule
+AG News & natural & 0.507 & 0.777 & 0.823 \\
+& json\_free & 0.410 & 0.853 & 0.803 \\
+& json\_constrained & 0.820 & 0.850 & 0.803 \\
+& json\_blind & 0.400 & 0.823 & 0.783 \\
+\midrule
+CoNLL F1 & natural & 0.321 & 0.476 & 0.380 \\
+& json\_free & 0.000 & 0.508 & 0.476 \\
+& json\_constrained & 0.430 & 0.511 & 0.474 \\
+& json\_blind & 0.387 & 0.620 & 0.574 \\
+\bottomrule
+\end{tabular}
+\caption{Classification accuracy and extraction F1, 300 examples per cell.}
+\label{tab:cls}
+\end{table}
+
+\subsection{Classification and extraction gain from JSON}
+
+On AG News and CoNLL (Table~\ref{tab:cls}), shown-and-enforced JSON matches or beats the natural format in five of
+six cells. The largest gain, $+0.313$ for the 1.7B model on AG News, is mostly a fix for label bias: in the natural
+format it answered ``World'' for 212 of 300 articles. Shown the schema with its enum of four labels, it spread its
+answers across all four labels (98, 75, 68 and 59); enforced against the same enum without seeing it (blind), it
+answered ``World'' 255 times and scored 0.400. The labels are
+listed in the instruction in every condition, so it is the explicit enum in the schema, not the list itself, that
+makes the difference.
+
+\subsection{Showing the schema can hurt extraction}
+
+CoNLL is the one place where hiding the schema helps at 4B and 8B: F1 rises from 0.511 to 0.620 and from 0.474 to
+0.574. Recall is unchanged (0.77 against 0.76 at 4B, 0.73 against 0.75 at 8B); precision rises from 0.38 to 0.58 and
+from 0.36 to 0.48. Almost all of the difference is the catch-all \texttt{misc} array. Shown a schema with four arrays,
+the models tend to fill each one, putting race times, scores and dates into \texttt{misc}: 627 and 687 false
+positives there, against 199 and 393 when the schema is hidden. The 1.7B model behaves the other way (332 shown, 896
+blind), so this is not a rule but a reminder that the schema is part of the prompt and can bias it.
+
+\section{Recommendations}
+
+\begin{itemize}
+\item Enforce the schema. At 4B and above it costs little or nothing, and below that free-form JSON is too fragile.
+\item Put reasoning fields before answer fields. An answer-first schema throws away the reasoning and can loop.
+\item Show the schema for reasoning and classification tasks; for extraction with a catch-all field, measure both, or
+tighten the field's description.
+\item If you parse JSON from a small model without enforcement, expect schema echoes and handle them.
+\end{itemize}
+
+\section{Limitations}
+
+We test one model family at three sizes, one serving stack and one grammar backend, with thinking disabled and greedy
+decoding. Results with reasoning modes or other families may differ. Each cell has 300 examples, so differences of a
+few points are within noise, and we report intervals for that reason. CoNLL F1 uses exact string match, which
+penalises boundary differences; absolute scores are low for every condition, and we draw conclusions only from the
+differences. We did not tune prompts per condition, deliberately, so a better-worded natural prompt could close some
+gaps.
+
+\section{Conclusion}
+
+``Does JSON mode hurt accuracy?'' has a more useful answer than yes or no. Constrained decoding with a shown,
+reasoning-first schema is close to free on the models people actually deploy, and it makes small models far more
+reliable. The accuracy people lose usually comes from the schema itself: answer fields placed before reasoning, schemas
+the model never sees, and catch-all fields it feels obliged to fill.
+
+\begin{thebibliography}{99}\small
+\bibitem{vllm} W.~Kwon, Z.~Li, S.~Zhuang, et al. Efficient memory management for large language model serving with PagedAttention. SOSP 2023. arXiv:2309.06180.
+\bibitem{outlines} B.~T.~Willard, R.~Louf. Efficient guided generation for large language models. arXiv:2307.09702, 2023.
+\bibitem{xgrammar} Y.~Dong, C.~F.~Ruan, Y.~Cai, et al. XGrammar: flexible and efficient structured generation engine for large language models. arXiv:2411.15100, 2024.
+\bibitem{gcd} S.~Geng, M.~Josifoski, M.~Peyrard, R.~West. Grammar-constrained decoding for structured NLP tasks without finetuning. EMNLP 2023. arXiv:2305.13971.
+\bibitem{jsonschemabench} S.~Geng, H.~Cooper, M.~Moskal, et al. JSONSchemaBench: a rigorous benchmark of structured outputs for language models. arXiv:2501.10868, 2025.
+\bibitem{speakfreely} Z.~R.~Tam, C.-K.~Wu, Y.-L.~Tsai, et al. Let me speak freely? A study on the impact of format restrictions on performance of large language models. arXiv:2408.02442, 2024.
+\bibitem{saywhat} W.~Kurt. Say what you mean: a response to ``Let Me Speak Freely''. \url{https://blog.dottxt.ai/say-what-you-mean.html}, 2024.
+\bibitem{castillo} D.~Castillo. Order of fields in structured output can hurt LLMs output. \url{https://www.dsdev.in/order-of-fields-in-structured-output-can-hurt-llms-output}, 2025.
+\bibitem{cot} J.~Wei, X.~Wang, D.~Schuurmans, et al. Chain-of-thought prompting elicits reasoning in large language models. NeurIPS 2022. arXiv:2201.11903.
+\bibitem{zhao} T.~Z.~Zhao, E.~Wallace, S.~Feng, D.~Klein, S.~Singh. Calibrate before use: improving few-shot performance of language models. ICML 2021. arXiv:2102.09690.
+\bibitem{qwen3} A.~Yang, A.~Li, B.~Yang, et al. Qwen3 technical report. arXiv:2505.09388, 2025.
+\bibitem{gsm8k} K.~Cobbe, V.~Kosaraju, M.~Bavarian, et al. Training verifiers to solve math word problems. arXiv:2110.14168, 2021.
+\end{thebibliography}
+
+\end{document}

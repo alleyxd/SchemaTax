@@ -1,0 +1,16 @@
+[project]
+name = "schematax"
+version = "0.1.0"
+description = "Does constrained JSON decoding cost accuracy? Experiments separating schema enforcement, visibility and field order."
+readme = "README.md"
+requires-python = ">=3.11"
+license = "MIT"
+authors = [{ name = "Ali Ashter" }]
+dependencies = ["datasets>=3", "openai>=1.40"]
+
+[build-system]
+requires = ["setuptools>=70"]
+build-backend = "setuptools.build_meta"
+
+[tool.setuptools]
+packages = ["schematax"]
