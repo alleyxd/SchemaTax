@@ -70,6 +70,15 @@ batch for as long as the batch took, so the GPU is busy about half the time.
 `schematax/tasks.py` has every prompt, schema and scorer. Each journal line holds the task, condition, example id,
 score, token count, finish reason and the raw response.
 
+## Tests
+
+```bash
+pip install -e ".[dev]"
+pytest -q
+```
+
+The tests cover answer parsing and scoring for every task, so a change to a scorer can't silently shift the results.
+
 ## Limitations
 
 One model family, one serving stack, greedy decoding with thinking turned off. CoNLL uses exact string match, so its
