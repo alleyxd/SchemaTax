@@ -14,6 +14,7 @@ def test_gsm8k_json():
     assert gsm8k_score(GSM, "json_constrained", '{"reasoning": "9 * 2", "answer": 18}') == (True, 1.0)
     assert gsm8k_score(GSM, "json_free", '```json\n{"answer": "18"}\n```') == (True, 1.0)
     assert gsm8k_score(GSM, "json_free", '{"reasoning": "no answer"}') == (False, 0.0)
+    assert gsm8k_score({"gold": 1.0}, "json_free", '{"answer": true}') == (False, 0.0)
 
 
 def test_json_extraction():
