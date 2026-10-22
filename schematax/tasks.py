@@ -80,7 +80,7 @@ def gsm8k_score(doc: dict, cond: str, text: str) -> tuple[bool, float]:
     val = obj["answer"]
     if isinstance(val, str):
         val = _number(val)
-    ok = isinstance(val, (int, float))
+    ok = isinstance(val, (int, float)) and not isinstance(val, bool)  # json true would otherwise count as 1
     return ok, float(ok and abs(float(val) - doc["gold"]) < 1e-6)
 
 
