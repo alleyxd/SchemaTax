@@ -8,6 +8,9 @@ license = "MIT"
 authors = [{ name = "Ali Ashter" }]
 dependencies = ["datasets>=3", "openai>=1.40"]
 
+[project.optional-dependencies]
+dev = ["pytest>=8"]
+
 [build-system]
 requires = ["setuptools>=70"]
 build-backend = "setuptools.build_meta"
