@@ -1,0 +1,20 @@
+{
+  "title": "The Schema Tax Is a Schema Design Tax: When Constrained JSON Decoding Costs Accuracy, and When It Helps",
+  "description": "Separates schema enforcement, schema visibility and field order in constrained JSON decoding. Across Qwen3-1.7B/4B/8B on GSM8K, AG News and CoNLL-2003, enforcing a shown, reasoning-first schema costs little, while answer-first field order and hidden schemas cause the losses. Includes code, 12,600 responses and the paper.",
+  "upload_type": "publication",
+  "publication_type": "preprint",
+  "creators": [
+    {
+      "name": "Ashter, Ali"
+    }
+  ],
+  "keywords": [
+    "structured output",
+    "constrained decoding",
+    "JSON schema",
+    "large language models",
+    "evaluation"
+  ],
+  "license": "MIT",
+  "access_right": "open"
+}
