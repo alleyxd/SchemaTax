@@ -1,6 +1,7 @@
 # SchemaTax
 
-[![DOI](https://zenodo.org/badge/DOI/10.5281/zenodo.23754532.svg)](https://doi.org/10.5281/zenodo.23754532)
+[![Paper DOI](https://zenodo.org/badge/DOI/10.5281/zenodo.23754532.svg)](https://doi.org/10.5281/zenodo.23754532)
+[![Code DOI](https://zenodo.org/badge/DOI/10.5281/zenodo.23755108.svg)](https://doi.org/10.5281/zenodo.23755108)
 
 Does forcing a model to answer in JSON cost accuracy? This repo separates three things that "JSON mode" usually
 changes at once:
