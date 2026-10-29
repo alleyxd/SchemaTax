@@ -1,5 +1,7 @@
 # SchemaTax
 
+[![DOI](https://zenodo.org/badge/DOI/10.5281/zenodo.23754532.svg)](https://doi.org/10.5281/zenodo.23754532)
+
 Does forcing a model to answer in JSON cost accuracy? This repo separates three things that "JSON mode" usually
 changes at once:
 
@@ -10,7 +12,7 @@ changes at once:
 and measures each on GSM8K (reasoning), AG News (classification) and CoNLL-2003 (entity extraction) with Qwen3-1.7B,
 4B and 8B served by vLLM. 300 examples per task, 12,600 requests in total, every response saved in `results/`.
 
-Paper: [`paper/schematax.pdf`](paper/schematax.pdf)
+Paper: [`paper/schematax.pdf`](paper/schematax.pdf) ([Zenodo](https://doi.org/10.5281/zenodo.23754532))
 
 ## Results
 
@@ -84,6 +86,18 @@ The tests cover answer parsing and scoring for every task, so a change to a scor
 One model family, one serving stack, greedy decoding with thinking turned off. CoNLL uses exact string match, so its
 absolute F1 is low for every condition; the comparisons between conditions are what matter. Prompts were not tuned per
 condition.
+
+## Citation
+
+```bibtex
+@misc{ashter2026schematax,
+  title  = {The Schema Tax Is a Schema Design Tax: When Constrained JSON Decoding Costs Accuracy, and When It Helps},
+  author = {Ashter, Ali},
+  year   = {2026},
+  doi    = {10.5281/zenodo.23754532},
+  url    = {https://doi.org/10.5281/zenodo.23754532}
+}
+```
 
 ## License
 
